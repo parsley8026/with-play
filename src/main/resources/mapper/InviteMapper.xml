@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="com.parsley.mapper.InviteMapper">
+
+    <!--  邀请信息  -->
+    <resultMap id="inviteInfo" type="invite">
+        <result column="id" property="id" jdbcType="INTEGER" />
+        <result column="post_id" property="postId" jdbcType="INTEGER" />
+        <result column="inviter_id" property="inviterId" jdbcType="INTEGER" />
+        <result column="invitee_id" property="inviteeId" jdbcType="INTEGER" />
+        <result column="cancel" property="cancel" jdbcType="TINYINT" />
+
+        <!-- 时间地点人物 -->
+        <association property="post" javaType="Post">
+            <result column="post_id" property="id" jdbcType="INTEGER" />
+            <result column="location" property="location" jdbcType="VARCHAR" />
+            <result column="active_time" property="activeTime" jdbcType="TIMESTAMP" />
+        </association>
+    </resultMap>
+
+
+    <!-- 对于受邀人可以做的动作 -->
+    <!-- 添加邀请 -->
+    <insert id="addInvite" parameterType="Invite">
+        insert into invite (post_id, inviter_id, invitee_id)
+        values (#{postId,jdbcType=INTEGER}, #{inviterId,jdbcType=INTEGER},
+                #{inviteeId,jdbcType=INTEGER})
+    </insert>
+    <!-- 取消邀请 -->
+    <update id="cancelInviteById" parameterType="java.lang.Integer">
+        update invite
+            set cancel = 1
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+    <!-- 查看自己在某个帖子下的邀请信息 -->
+    <select id="getInviteeInviteInfoByPostId" resultMap="inviteInfo">
+        select *
+        from invite
+        where post_id = #{postId,jdbcType=INTEGER} and invitee_id = #{inviteeId,jdbcType=INTEGER} and cancel = 0
+        order by id DESC
+    </select>
+    <!-- 查看自己的所有受邀记录 -->
+    <select id="getAllInviteeInfo" resultMap="inviteInfo" parameterType="java.lang.Integer">
+        select *
+        from invite
+        where invitee_id = #{inviteeId,jdbcType=INTEGER} and cancel = 0
+        order by id DESC
+    </select>
+    <!-- 退出活动 -->
+    <update id="exitActivity">
+        update invite
+            set cancel = 1
+        where post_id = #{postId,jdbcType=INTEGER}
+            and invitee_id = #{inviteeId,jdbcType=INTEGER}
+    </update>
+
+    <!-- 发起人可以做的动作 -->
+    <!-- 取消某个帖子下的邀请 -->
+    <update id="cancelInviteByPostId" parameterType="java.lang.Integer">
+        update invite
+            set cancel = 1
+        where post_id = #{postId,jdbcType=INTEGER} and cancel = 0
+    </update>
+    <!-- 获取某个帖子的邀请信息 -->
+    <select id="getInviterInviteInfoByPostId" resultMap="inviteInfo" parameterType="java.lang.Integer">
+        select *
+        from invite
+        where post_id = #{postId,jdbcType=INTEGER} and cancel = 0
+        order by id DESC
+    </select>
+    <!-- 获取自己发起的所有邀请 -->
+    <select id="getAllInviterInfo" resultMap="inviteInfo" parameterType="java.lang.Integer">
+        select *
+        from invite
+        where inviter_id = #{inviterId,jdbcType=INTEGER} and cancel = 0
+        order by id DESC
+    </select>
+
+</mapper>

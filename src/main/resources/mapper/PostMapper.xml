@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="com.parsley.mapper.PostMapper">
+
+    <!--  主题基本结果集  -->
+    <resultMap id="BaseResultMap" type="Post" >
+        <id column="id" property="id" jdbcType="INTEGER" />
+        <result column="user_id" property="userId" jdbcType="INTEGER" />
+        <result column="create_time" property="createTime" jdbcType="TIMESTAMP" />
+        <result column="update_time" property="updateTime" jdbcType="TIMESTAMP" />
+        <result column="title" property="title" jdbcType="VARCHAR" />
+        <result column="click" property="click" jdbcType="INTEGER" />
+        <result column="tab_id" property="tabId" jdbcType="TINYINT" />
+    </resultMap>
+
+    <!-- 主题和用户信息结果集 用于首页显示  -->
+    <resultMap id="postAndUserInfo" type="Post" extends="BaseResultMap">
+        <result column="count_replies" property="countReplies" jdbcType="INTEGER" />
+        <result column="cancel" property="cancel" jdbcType="TINYINT" />
+
+        <association property="user" javaType="User">
+            <id column="id" property="id" jdbcType="INTEGER" />
+            <result column="username" property="username" jdbcType="VARCHAR" />
+            <result column="avatar" property="avatar" jdbcType="VARCHAR" />
+        </association>
+
+        <association property="tab" javaType="Tab">
+            <id column="id" property="id" jdbcType="INTEGER" />
+            <result column="tab_name" property="tabName" jdbcType="VARCHAR" />
+        </association>
+    </resultMap>
+
+    <!-- 主题详情及用户必要信息 用于主题详情页  -->
+    <resultMap id="postAndUserDetail" type="Post" extends="BaseResultMap">
+        <result column="content" property="content" jdbcType="LONGVARCHAR" />
+        <result column="location" property="location" jdbcType="VARCHAR" />
+        <result column="max_people_num" property="maxPeopleNum" jdbcType="INTEGER" />
+        <result column="now_people_num" property="nowPeopleNum" jdbcType="INTEGER" />
+        <result column="active_time" property="activeTime" jdbcType="TIMESTAMP" />
+
+        <association property="user" javaType="User">
+            <id column="user_id" property="id" jdbcType="INTEGER" />
+            <result column="username" property="username" jdbcType="VARCHAR" />
+            <result column="avatar" property="avatar" jdbcType="VARCHAR" />
+        </association>
+    </resultMap>
+
+    <!-- 最多评论主题列表 -->
+    <resultMap id="mostCommentsPost" type="Post">
+        <id column="id" property="id" jdbcType="INTEGER" />
+        <result column="count_replies" property="countReplies" jdbcType="INTEGER" />
+        <result column="title" property="title" jdbcType="VARCHAR" />
+    </resultMap>
+
+    <select id="listPostsDetailByPostIdList" parameterType="java.util.List" resultMap="postAndUserDetail">
+        SELECT post.*,user.username,user.avatar
+        from post,user
+        where post.id in
+        <foreach collection="list" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
+
+    <!-- 获取所有主题和用户信息 -->
+    <select id="listPostsAndUsers" resultMap="postAndUserInfo" >
+        select post.id,post.user_id,post.create_time,post.update_time,post.title,post.click,post.tab_id,post.cancel,user.username,user.avatar ,
+               tab.tab_name,count(reply.id) as count_replies
+        from post
+            LEFT JOIN user on  post.user_id = user.id
+            LEFT JOIN tab on tab.id=post.tab_id
+            LEFT JOIN reply on post.id=reply.post_id
+        group by post.id
+        order by post.id desc ;
+    </select>
+
+    <!-- 通过标签获取所有主题和用户信息 -->
+    <select id="listPostsAndUsersOfTab" parameterType="java.lang.Integer" resultMap="postAndUserInfo" >
+        select post.id,post.user_id,post.create_time,post.update_time,post.title,post.click,post.tab_id,post.cancel,user.username,user.avatar ,
+               tab.tab_name,count(reply.id) as count_replies
+        from post
+            LEFT JOIN user on  post.user_id = user.id
+            LEFT JOIN tab on tab.id=post.tab_id
+            LEFT JOIN reply on post.id=reply.post_id
+        where tab.id = #{id,jdbcType=INTEGER}
+        group by post.id
+        order by post.id desc ;
+    </select>
+
+    <!-- 获取主题详细信息和用户 -->
+    <select id="selectById" parameterType="java.lang.Integer" resultMap="postAndUserDetail">
+        SELECT post.*,user.username,user.avatar
+        from post,user
+        where post.user_id = user.id
+          and post.id = #{id,jdbcType=INTEGER};
+    </select>
+
+    <!-- 获取所有主题 -->
+    <select id="getAllPosts" resultMap="BaseResultMap" >
+        select
+            id, user_id, create_time, update_time, title, click, tab_id
+        from post
+        ORDER BY id DESC
+    </select>
+
+    <!-- 获取给定ID的所有主题 -->
+    <select id="getPostsByUserId" resultMap="postAndUserInfo" parameterType="java.lang.Integer">
+        select post.id,post.user_id,post.create_time,post.update_time,post.title,post.click,post.tab_id,post.cancel,user.username,user.avatar ,
+               tab.tab_name,count(reply.id) as count_replies
+        from post
+                 LEFT JOIN user on  post.user_id = user.id
+                 LEFT JOIN tab on tab.id=post.tab_id
+                 LEFT JOIN reply on post.id=reply.post_id
+        where post.user_id = #{userId,jdbcType=INTEGER}
+        group by post.id
+        order by post.id desc ;
+    </select>
+
+    <!-- 获取主题数量 -->
+    <select id="getPostsNum" resultType="java.lang.Integer" >
+        select
+            COUNT(*)
+        from post
+    </select>
+
+    <!-- 获取最多评论量主题 -->
+    <select id="listMostCommentsPosts" resultMap="mostCommentsPost">
+        SELECT post.id,post.title,count(reply.id) as count_replies
+        from post ,reply
+        where post.id = reply.post_id
+        group by post.id
+        order by count_replies desc limit 5;
+    </select>
+
+    <!-- 模糊搜索主题相关 -->
+    <select id="searchPosts" resultMap="postAndUserDetail" parameterType="java.lang.String">
+        SELECT post.*,user.username,user.avatar
+        from post,user
+        where post.title like #{title,jdbcType=VARCHAR}
+    </select>
+
+    <!-- 取消活动 -->
+    <update id="cancelByPrimaryKey" parameterType="java.lang.Integer" >
+        update post
+            set cancel = 1
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 删除主题 -->
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer" >
+        delete from post
+        where id = #{id,jdbcType=INTEGER}
+    </delete>
+
+    <!-- 添加主题 -->
+    <insert id="insert" parameterType="Post" >
+        insert into post (user_id,
+                          create_time,
+                          update_time,
+                          title,
+                          tab_id,
+                          content,
+                          location,
+                          max_people_num,
+                          active_time)
+        values (
+                #{userId,jdbcType=INTEGER},
+                #{createTime,jdbcType=TIMESTAMP},
+                #{updateTime,jdbcType=TIMESTAMP},
+                #{title,jdbcType=VARCHAR},
+                #{tabId,jdbcType=TINYINT},
+                #{content,jdbcType=LONGVARCHAR},
+                #{location,jdbcType=VARCHAR},
+                #{maxPeopleNum,jdbcType=INTEGER},
+                #{activeTime,jdbcType=TIMESTAMP})
+    </insert>
+
+    <!-- 选择性插入 -->
+    <insert id="insertSelective" parameterType="Post" >
+        insert into post
+        <trim prefix="(" suffix=")" suffixOverrides="," >
+            <if test="id != null" >
+                id,
+            </if>
+            <if test="userId != null" >
+                user_id,
+            </if>
+            <if test="createTime != null" >
+                create_time,
+            </if>
+            <if test="updateTime != null" >
+                update_time,
+            </if>
+            <if test="title != null" >
+                title,
+            </if>
+            <if test="click != null" >
+                click,
+            </if>
+            <if test="tabId != null" >
+                tab_id,
+            </if>
+            <if test="content != null" >
+                content,
+            </if>
+            <if test="location != null" >
+                location,
+            </if>
+            <if test="maxPeopleNum != null" >
+                max_people_num,
+            </if>
+            <if test="activeTime != null" >
+                active_time
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides="," >
+            <if test="id != null" >
+                #{id,jdbcType=INTEGER},
+            </if>
+            <if test="userId != null" >
+                #{userId,jdbcType=INTEGER},
+            </if>
+            <if test="createTime != null" >
+                #{createTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="updateTime != null" >
+                #{updateTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="title != null" >
+                #{title,jdbcType=VARCHAR},
+            </if>
+            <if test="click != null" >
+                #{click,jdbcType=INTEGER},
+            </if>
+            <if test="tabId != null" >
+                #{tabId,jdbcType=TINYINT},
+            </if>
+            <if test="content != null" >
+                #{content,jdbcType=LONGVARCHAR},
+            </if>
+            <if test="location != null" >
+                #{location,jdbcType=VARCHAR}
+            </if>
+            <if test="maxPeopleNum != null" >
+                #{maxPeopleNum,jdbcType=INTEGER}
+            </if>
+            <if test="activeTime != null" >
+                #{activeTime,jdbcType=TIMESTAMP}
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 更新主题 -->
+    <update id="updateByPrimaryKeySelective" parameterType="Post" >
+        update post
+        <set >
+            <if test="userId != null" >
+                user_id = #{userId,jdbcType=INTEGER},
+            </if>
+            <if test="createTime != null" >
+                create_time = #{createTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="updateTime != null" >
+                update_time = #{updateTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="title != null" >
+                title = #{title,jdbcType=VARCHAR},
+            </if>
+            <if test="click != null" >
+                click = #{click,jdbcType=INTEGER},
+            </if>
+            <if test="tabId != null" >
+                tab_id = #{tabId,jdbcType=TINYINT},
+            </if>
+            <if test="content != null" >
+                content = #{content,jdbcType=LONGVARCHAR},
+            </if>
+            <if test="location != null" >
+                location = #{location,jdbcType=VARCHAR}
+            </if>
+            <if test="maxPeopleNum != null" >
+                max_people_num = #{maxPeopleNum,jdbcType=INTEGER}
+            </if>
+            <if test="activeTime != null" >
+                active_time = #{activeTime,jdbcType=TIMESTAMP}
+            </if>
+        </set>
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 更新主题详细信息 -->
+    <update id="updateByPrimaryKeyWithBLOBs" parameterType="Post" >
+        update post
+        set user_id = #{userId,jdbcType=INTEGER},
+            create_time = #{createTime,jdbcType=TIMESTAMP},
+            update_time = #{updateTime,jdbcType=TIMESTAMP},
+            title = #{title,jdbcType=VARCHAR},
+            click = #{click,jdbcType=INTEGER},
+            tab_id = #{tabId,jdbcType=TINYINT},
+            content = #{content,jdbcType=LONGVARCHAR},
+            location = #{location,jdbcType=VARCHAR},
+            max_people_num = #{maxPeopleNum,jdbcType=INTEGER},
+            active_time = #{activeTime,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 更新主题基本信息 -->
+    <update id="updateByPrimaryKey" parameterType="Post" >
+        update post
+        set user_id = #{userId,jdbcType=INTEGER},
+            create_time = #{createTime,jdbcType=TIMESTAMP},
+            update_time = #{updateTime,jdbcType=TIMESTAMP},
+            title = #{title,jdbcType=VARCHAR},
+            click = #{click,jdbcType=INTEGER},
+            tab_id = #{tabId,jdbcType=TINYINT}
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 点击量增加 -->
+    <update id="clickAddOne" parameterType="java.lang.Integer" >
+        update post
+        set
+            click = click+1
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 参与人数增加 -->
+    <update id="peopleNumAddOne" parameterType="java.lang.Integer" >
+        update post
+        set
+            now_people_num = now_people_num+1
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <update id="peopleNumDropOne" parameterType="java.lang.Integer" >
+        update post
+        set
+            now_people_num = now_people_num-1
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
+    <!-- 取消某个帖子下的邀请 -->
+    <update id="cancelInviteByPostId" parameterType="java.lang.Integer">
+        delete from post
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+</mapper>
